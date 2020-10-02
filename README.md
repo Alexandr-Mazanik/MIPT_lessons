@@ -23,4 +23,4 @@ semester_1/lab_work_3            - third week
 
 semester_1/lab_work_4            - fourth week
 
-	task_1.py
+	task_1-3.py
