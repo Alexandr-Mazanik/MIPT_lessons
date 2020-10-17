@@ -6,9 +6,12 @@ SCREEN_WIDTH = 900
 SCREEN_HEIGHT = 900
 FPS = 30
 
+GAME_FINISHED = False
 BALLS = []
 GAME_SCORE = 0
 GHOST_TIME = 0
+GAME_TIME = 1000
+REMAINING_TIME = GAME_TIME
 
 WHITE = (255, 255, 255)
 WHITE_ALPHA = (255, 255, 255, 0)
@@ -21,6 +24,7 @@ BROWN = (139, 69, 19)
 PURPLE = (128, 0, 128)
 AQUA = (0, 255, 255)
 ORANGE = (255, 69, 0)
+GRAY = (192, 192, 192)
 
 
 def main():
@@ -31,8 +35,11 @@ def main():
 
     finished = False
     menu_is_active = True
-    number_of_balls = 10
+    number_of_balls = 6
     ghost_lifetime = 20
+    name = ""
+    name_input = True
+    global GAME_FINISHED, REMAINING_TIME, GAME_SCORE
 
     menu_text = make_menu_text()
     balls_surfaces = make_balls(number_of_balls)
@@ -45,19 +52,40 @@ def main():
                 finished = True
             elif event.type == pygame.KEYDOWN:
                 key = event.key
-                if (key == pygame.K_q or
-                        key == pygame.K_ESCAPE or
-                        key == pygame.K_BACKSPACE):
+                if (key == pygame.K_q and not GAME_FINISHED) or key == pygame.K_ESCAPE:
                     finished = True
-                if key == pygame.K_SPACE and menu_is_active:
-                    menu_is_active = False
-                if key == pygame.K_p and not menu_is_active:
-                    menu_is_active = True
-            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if not GAME_FINISHED:
+                    if key == pygame.K_SPACE and menu_is_active:
+                        menu_is_active = False
+                    if key == pygame.K_p and not menu_is_active:
+                        menu_is_active = True
+                else:
+                    if key == pygame.K_BACKSPACE:
+                        name = name[:-1]
+                    elif key == pygame.K_SPACE:
+                        if name_input:
+                            make_a_record(name)
+                        name_input = False
+                    elif not name_input and key == pygame.K_r:
+                        REMAINING_TIME = GAME_TIME
+                        GAME_FINISHED = False
+                        GAME_SCORE = 0
+                        name_input = True
+                    else:
+                        if name_input:
+                            name += event.unicode
+            elif (event.type == pygame.MOUSEBUTTONDOWN and
+                  event.button == 1 and
+                  not GAME_FINISHED):
                 mouse_click(event.pos)
 
-        game_scenario(screen, menu_is_active, menu_text,
-                      balls_surfaces, ghost_lifetime)
+        if not GAME_FINISHED:
+            game_scenario(screen, menu_is_active, menu_text,
+                          balls_surfaces, ghost_lifetime)
+        elif GAME_FINISHED and name_input:
+            draw_finish_window(screen, name)
+        else:
+            ask_replay(screen)
 
     pygame.quit()
 
@@ -95,7 +123,7 @@ def make_balls(number_of_balls):
         ball = pygame.Surface((size, size), pygame.SRCALPHA)
         ball.fill(WHITE_ALPHA)
         pygame.draw.ellipse(ball,
-                            colors[randint(0, len(colors)-1)],
+                            colors[randint(0, len(colors) - 1)],
                             ((0, 0), (size, size)))
         balls.append(ball)
         BALLS.append(add_ball_dict(size // 2))
@@ -158,39 +186,51 @@ def randomize_data(radius):
 
 def game_scenario(screen, menu_is_active, menu_text,
                   balls_surfaces, ghost_lifetime):
-    global GHOST_TIME
+    """
+    implements game scenario
+    :param screen: an active screen
+    :param menu_is_active: True, if menu id active
+    :param menu_text: the text, which is on the menu
+    :param balls_surfaces: surfaces of balls
+    :param ghost_lifetime:  ghost lifetime
+    :return: none
+    """
+    global GHOST_TIME, REMAINING_TIME, GAME_FINISHED
     ghost_dies = False
     if menu_is_active:
-        draw_menu(screen, menu_text)
+        x0_text = SCREEN_WIDTH // 7
+        y0_text = SCREEN_HEIGHT // 3
+
+        print_text(screen, menu_text, x0_text, y0_text, 2)
+
+        pygame.display.update()
     else:
         if GHOST_TIME == ghost_lifetime:
             ghost_dies = True
             GHOST_TIME = 0
+
         draw_game(screen, balls_surfaces, ghost_dies)
+
         GHOST_TIME += 1
+        REMAINING_TIME -= 1
 
-
-def draw_menu(screen, text):
-    """
-    Draws a menu
-    :param screen: an active screen
-    :param text: the text of the menu
-    :return: none
-    """
-    x0_text = SCREEN_WIDTH // 7
-    y0_text = SCREEN_HEIGHT // 3
-    for i, string in enumerate(text):
-        screen.blit(string, [x0_text, y0_text + 2 * i * string.get_height()])
-
-    pygame.display.update()
+    if REMAINING_TIME <= 0:
+        GAME_FINISHED = True
 
 
 def draw_game(screen, balls_surfaces, ghost_dies):
+    """
+    draw a gameplay
+    :param screen: an active screen
+    :param balls_surfaces: surfaces of balls
+    :param ghost_dies: True, if the ghost is die
+    :return: none
+    """
     screen.fill(BLACK)
 
     for i, (ball, data) in enumerate(zip(balls_surfaces, BALLS)):
         if ghost_dies:
-            change_data(len(BALLS)-1)
+            change_data(len(BALLS) - 1)
         x, y = convert_coord(data['x'], data['y'], data['radius'])
         screen.blit(ball, (x, y))
         calc_new_data(i)
@@ -276,10 +316,10 @@ def mouse_click(position):
     if was_a_hit:
         change_data(nearest_ball_num)
 
-    if was_a_hit and nearest_ball_num == len(BALLS)-1:
+    if was_a_hit and nearest_ball_num == len(BALLS) - 1:
         GHOST_TIME = 0
         change_game_score(was_a_hit, True)
-    elif not was_a_hit and nearest_ball_num == len(BALLS)-1:
+    elif not was_a_hit and nearest_ball_num == len(BALLS) - 1:
         change_game_score(was_a_hit, True)
     else:
         change_game_score(was_a_hit)
@@ -298,7 +338,7 @@ def find_the_nearest_ball(x, y):
     for i, data in enumerate(BALLS):
         delta_x = abs(data['x'] - x)
         delta_y = abs(data['y'] - y)
-        distance = math.sqrt(delta_x**2 + delta_y**2)
+        distance = math.sqrt(delta_x ** 2 + delta_y ** 2)
         if distance < minimal_distance:
             minimal_distance = distance
             nearest_ball_num = i
@@ -317,7 +357,7 @@ def change_data(ball_num):
     :return: none
     """
     new_x, new_y, new_v_x, new_v_y = randomize_data(BALLS[ball_num]['radius'])
-    if ball_num == len(BALLS)-1:
+    if ball_num == len(BALLS) - 1:
         new_v_x = new_v_y = 0
 
     BALLS[ball_num]['x'] = new_x
@@ -337,17 +377,158 @@ def change_game_score(was_a_hit, is_a_ghost=False):
     if was_a_hit and is_a_ghost:
         GAME_SCORE += 100
     elif not was_a_hit and is_a_ghost:
-        GAME_SCORE -= 1000
+        GAME_SCORE -= 100
     elif was_a_hit:
         GAME_SCORE += 10
     else:
         GAME_SCORE -= 5
 
-    print(GAME_SCORE)
-
 
 def draw_info_window(screen):
-    pass
+    """
+    draws the info window
+    :param screen: an active screen
+    :return: none
+    """
+    x_0 = 8 * SCREEN_WIDTH // 10
+    window_coordinates = [
+        (x_0, 0),
+        (SCREEN_WIDTH, SCREEN_HEIGHT // 5)
+    ]
+
+    pygame.draw.rect(screen, GRAY, window_coordinates)
+
+    x_0_text = x_0 + (SCREEN_HEIGHT - x_0) // 40
+    y_0_text = SCREEN_HEIGHT // 100
+
+    text = make_info_text()
+    print_text(screen, text, x_0_text, y_0_text, 1)
+
+
+def make_info_text():
+    """
+    makes info text
+    :return: list of surfaces of each string of the info text
+    """
+    font_size = min(SCREEN_WIDTH, SCREEN_HEIGHT) // 18
+    text = []
+    font = pygame.font.Font(None, font_size)
+
+    text.append(font.render("TIME:", True, BLACK))
+    text.append(font.render(str(REMAINING_TIME), True, BLACK))
+    text.append(font.render("SCORE:", True, BLACK))
+    text.append(font.render(str(GAME_SCORE), True, BLACK))
+
+    return text
+
+
+def draw_finish_window(screen, name):
+    """
+    draws a finish window
+    :param screen: an active screen
+    :param name: a current name
+    :return: none
+    """
+    screen.fill(BLACK)
+    inbox_rect_coord = [
+        (SCREEN_WIDTH // 4, 3 * SCREEN_HEIGHT // 5),
+        (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 12)
+    ]
+    x0_text = SCREEN_WIDTH // 10
+    y0_text = SCREEN_HEIGHT // 5
+
+    text = make_finish_window_text()
+    print_text(screen, text, x0_text, y0_text, 2)
+
+    pygame.draw.rect(screen, GRAY, inbox_rect_coord)
+    print_name(screen, name, inbox_rect_coord[0])
+
+    pygame.display.update()
+
+
+def make_finish_window_text():
+    """
+    makes finish window text
+    :return: list of strings of finish window text
+    """
+    font_size = min(SCREEN_WIDTH, SCREEN_HEIGHT) // 14
+    text = []
+    font = pygame.font.Font(None, font_size)
+
+    text.append(font.render("Your score:", True, RED))
+    text.append(font.render(str(GAME_SCORE), True, RED))
+    text.append(font.render("Please enter your name:", True, RED))
+    text.append(font.render("(press space after finishing typing)", True, RED))
+
+    return text
+
+
+def print_text(screen, text, x0, y0, alpha):
+    """
+    prints given text
+    :param screen: an active screen
+    :param text: a list of strings of the text
+    :param x0: x0 coord of the text
+    :param y0: y0 coord of the text
+    :param alpha: line spacing ratio
+    :return: none
+    """
+    for i, string in enumerate(text):
+        screen.blit(string, (x0, y0 + alpha * i * string.get_height()))
+
+
+def print_name(screen, name, coord):
+    """
+    prints a name on a box
+    :param screen: an active screen
+    :param name: a current name
+    :param coord: coordinates of the name text
+    :return: none
+    """
+    x0, y0 = coord
+    x0 += SCREEN_WIDTH // 100
+    y0 += SCREEN_HEIGHT // 100
+
+    font_size = min(SCREEN_WIDTH, SCREEN_HEIGHT) // 10
+    font = pygame.font.Font(None, font_size)
+
+    text = font.render(name, True, BLACK)
+    screen.blit(text, (x0, y0))
+
+
+def make_a_record(name):
+    """
+    makes a record of the player's score
+    :param name: name of the player
+    :return: none
+    """
+    global GAME_SCORE
+    with open('records.txt', 'a') as desk:
+        desk.write(name + ' -- ' + str(GAME_SCORE) + '\n\n')
+
+
+def ask_replay(screen):
+    """
+    asking about a replay
+    :param screen: an active screen
+    :return: none
+    """
+    screen.fill(BLACK)
+
+    font_size = min(SCREEN_WIDTH, SCREEN_HEIGHT) // 14
+    text = []
+    font = pygame.font.Font(None, font_size)
+
+    text.append(font.render("Thanks!", True, RED))
+    text.append(font.render("If you want to play again press r", True, RED))
+    text.append(font.render("If you want to exit press exp bar", True, RED))
+
+    x0_text = SCREEN_WIDTH // 8
+    y0_text = SCREEN_HEIGHT // 3
+
+    print_text(screen, text, x0_text, y0_text, 2)
+
+    pygame.display.update()
 
 
 main()
