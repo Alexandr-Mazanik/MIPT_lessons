@@ -1,5 +1,6 @@
 import pygame
 from random import randint
+import math
 
 SCREEN_WIDTH = 900
 SCREEN_HEIGHT = 900
@@ -48,6 +49,8 @@ def main():
                     menu_is_active = False
                 if key == pygame.K_p and not menu_is_active:
                     menu_is_active = True
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                mouse_click(event.pos)
 
         game_scenario(screen, menu_is_active, menu_text,
                       number_of_balls, balls_surfaces)
@@ -102,11 +105,7 @@ def add_ball_dict(radius):
     :param radius: a radius of the ball
     :return: the record
     """
-    max_speed, min_speed = 20, 10
-    x = randint(radius, SCREEN_WIDTH - radius)
-    y = randint(radius, SCREEN_HEIGHT - radius)
-    v_x = randint(min_speed, max_speed)
-    v_y = randint(min_speed, max_speed)
+    x, y, v_x, v_y = randomize_data(radius)
     record = {'x': x,
               'y': y,
               'radius': radius,
@@ -114,6 +113,23 @@ def add_ball_dict(radius):
               'v_y': v_y}
 
     return record
+
+
+def randomize_data(radius):
+    """
+    calculates a random position and speed
+    :param radius: the radius of the ball
+    :return: x and y random coordinates,
+             v_x and v_y random speed
+    """
+    min_speed = -min(SCREEN_WIDTH, SCREEN_HEIGHT) // 100
+    max_speed = min(SCREEN_WIDTH, SCREEN_HEIGHT) // 100
+    x = randint(radius, SCREEN_WIDTH - radius)
+    y = randint(radius, SCREEN_HEIGHT - radius)
+    v_x = randint(min_speed, max_speed)
+    v_y = randint(min_speed, max_speed)
+
+    return x, y, v_x, v_y
 
 
 def game_scenario(screen, menu_is_active, menu_text,
@@ -165,7 +181,103 @@ def convert_coord(x_center, y_center, radius):
 
 
 def calc_new_data(i):
-    pass
+    """
+    calculates a new data for a ball positions
+    :param i: a number of the ball
+    :return: none
+    """
+    hit_the_wall, wall = is_touch(i)  # 'wall' is blow wall number
+
+    if hit_the_wall:
+        reflection(i, wall)
+
+    BALLS[i]['x'] += BALLS[i]['v_x']
+    BALLS[i]['y'] += BALLS[i]['v_y']
+
+
+def is_touch(i):
+    """
+    checks if the wall was touched
+    :param i: number of the ball
+    :return: True, if a wall was hit
+             1 - left wall or right wall
+             2 - top wall or bottom wall,
+             -1 - if a wall wasn't hit
+    """
+    x, y = BALLS[i]['x'], BALLS[i]['y']
+    if x < 0 or x > SCREEN_WIDTH:
+        return True, 1
+    elif y < 0 or y > SCREEN_HEIGHT:
+        return True, 2
+    else:
+        return False, -1
+
+
+def reflection(i, wall):
+    """
+    change a speed of the ball
+    :param i: number of the ball
+    :param wall: 1 - left wall or right wall, 2 - top wall or bottom wall
+    :return: none
+    """
+    if wall == 1:
+        BALLS[i]['v_x'] = -BALLS[i]['v_x']
+        BALLS[i]['x'] += BALLS[i]['v_x']
+    elif wall == 2:
+        BALLS[i]['v_y'] = -BALLS[i]['v_y']
+        BALLS[i]['y'] += BALLS[i]['v_y']
+
+
+def mouse_click(position):
+    """
+    mouse click handling
+    :param position: a position of the mouseclick
+    :return: none
+    """
+    x, y = position
+    distance, nearest_ball = find_the_nearest_ball(x, y)
+
+    if is_hit(distance, nearest_ball):
+        change_data(nearest_ball)
+
+
+def find_the_nearest_ball(x, y):
+    """
+    finds an index of the nearest ball to the mouse click position
+    :param x: x coordinate of the mouseclick
+    :param y: y coordinate of the mouseclick
+    :return: a distance to the nearest ball
+    and an index of the nearest ball to the mouseclick position
+    """
+    minimal_distance = max(SCREEN_WIDTH, SCREEN_HEIGHT)
+    nearest_ball_num = -1
+    for i, data in enumerate(BALLS):
+        delta_x = abs(data['x'] - x)
+        delta_y = abs(data['y'] - y)
+        distance = math.sqrt(delta_x**2 + delta_y**2)
+        if distance < minimal_distance:
+            minimal_distance = distance
+            nearest_ball_num = i
+
+    return minimal_distance, nearest_ball_num
+
+
+def is_hit(distance, ball_num):
+    return distance < BALLS[ball_num]['radius']
+
+
+def change_data(ball_num):
+    """
+    changes coordinates and speed of the ball after hitting
+    :param ball_num: number of the ball
+    :return: none
+    """
+    new_x, new_y, new_v_x, new_v_y = randomize_data(BALLS[ball_num]['radius'])
+
+    BALLS[ball_num]['x'] = new_x
+    BALLS[ball_num]['y'] = new_y
+    BALLS[ball_num]['v_x'] = new_v_x
+    BALLS[ball_num]['v_y'] = new_v_y
 
 
 main()
