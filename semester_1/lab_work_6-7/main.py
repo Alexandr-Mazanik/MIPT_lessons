@@ -7,6 +7,8 @@ SCREEN_HEIGHT = 900
 FPS = 30
 
 BALLS = []
+GAME_SCORE = 0
+GHOST_TIME = 0
 
 WHITE = (255, 255, 255)
 WHITE_ALPHA = (255, 255, 255, 0)
@@ -18,6 +20,7 @@ YELLOW = (255, 255, 0)
 BROWN = (139, 69, 19)
 PURPLE = (128, 0, 128)
 AQUA = (0, 255, 255)
+ORANGE = (255, 69, 0)
 
 
 def main():
@@ -29,6 +32,7 @@ def main():
     finished = False
     menu_is_active = True
     number_of_balls = 10
+    ghost_lifetime = 20
 
     menu_text = make_menu_text()
     balls_surfaces = make_balls(number_of_balls)
@@ -53,7 +57,7 @@ def main():
                 mouse_click(event.pos)
 
         game_scenario(screen, menu_is_active, menu_text,
-                      number_of_balls, balls_surfaces)
+                      balls_surfaces, ghost_lifetime)
 
     pygame.quit()
 
@@ -96,12 +100,29 @@ def make_balls(number_of_balls):
         balls.append(ball)
         BALLS.append(add_ball_dict(size // 2))
 
+    size, ghost = make_a_ghost()
+    balls.append(ghost)
+    BALLS.append(add_ball_dict(size, True))
+
     return balls
 
 
-def add_ball_dict(radius):
+def make_a_ghost():
+    """
+    makes a ghost Surface
+    :return: a ghost Surface
+    """
+    size = min(SCREEN_WIDTH, SCREEN_HEIGHT) // 20
+    ghost = pygame.Surface((size, size))
+    ghost.fill(ORANGE)
+
+    return size, ghost
+
+
+def add_ball_dict(radius, is_a_ghost=False):
     """
     calculates init params for balls
+    :param is_a_ghost: True, if it is a ghost
     :param radius: a radius of the ball
     :return: the record
     """
@@ -111,6 +132,9 @@ def add_ball_dict(radius):
               'radius': radius,
               'v_x': v_x,
               'v_y': v_y}
+
+    if is_a_ghost:
+        record['v_x'] = record['v_y'] = 0
 
     return record
 
@@ -133,11 +157,17 @@ def randomize_data(radius):
 
 
 def game_scenario(screen, menu_is_active, menu_text,
-                  number_of_balls, balls_surfaces):
+                  balls_surfaces, ghost_lifetime):
+    global GHOST_TIME
+    ghost_dies = False
     if menu_is_active:
         draw_menu(screen, menu_text)
     else:
-        draw_game(screen, number_of_balls, balls_surfaces)
+        if GHOST_TIME == ghost_lifetime:
+            ghost_dies = True
+            GHOST_TIME = 0
+        draw_game(screen, balls_surfaces, ghost_dies)
+        GHOST_TIME += 1
 
 
 def draw_menu(screen, text):
@@ -155,13 +185,17 @@ def draw_menu(screen, text):
     pygame.display.update()
 
 
-def draw_game(screen, number_of_balls, balls_surfaces):
+def draw_game(screen, balls_surfaces, ghost_dies):
     screen.fill(BLACK)
 
     for i, (ball, data) in enumerate(zip(balls_surfaces, BALLS)):
+        if ghost_dies:
+            change_data(len(BALLS)-1)
         x, y = convert_coord(data['x'], data['y'], data['radius'])
         screen.blit(ball, (x, y))
         calc_new_data(i)
+
+    draw_info_window(screen)
 
     pygame.display.update()
 
@@ -234,11 +268,21 @@ def mouse_click(position):
     :param position: a position of the mouseclick
     :return: none
     """
+    global GHOST_TIME
     x, y = position
-    distance, nearest_ball = find_the_nearest_ball(x, y)
+    distance, nearest_ball_num = find_the_nearest_ball(x, y)
+    was_a_hit = is_hit(distance, nearest_ball_num)
 
-    if is_hit(distance, nearest_ball):
-        change_data(nearest_ball)
+    if was_a_hit:
+        change_data(nearest_ball_num)
+
+    if was_a_hit and nearest_ball_num == len(BALLS)-1:
+        GHOST_TIME = 0
+        change_game_score(was_a_hit, True)
+    elif not was_a_hit and nearest_ball_num == len(BALLS)-1:
+        change_game_score(was_a_hit, True)
+    else:
+        change_game_score(was_a_hit)
 
 
 def find_the_nearest_ball(x, y):
@@ -273,11 +317,37 @@ def change_data(ball_num):
     :return: none
     """
     new_x, new_y, new_v_x, new_v_y = randomize_data(BALLS[ball_num]['radius'])
+    if ball_num == len(BALLS)-1:
+        new_v_x = new_v_y = 0
 
     BALLS[ball_num]['x'] = new_x
     BALLS[ball_num]['y'] = new_y
     BALLS[ball_num]['v_x'] = new_v_x
     BALLS[ball_num]['v_y'] = new_v_y
+
+
+def change_game_score(was_a_hit, is_a_ghost=False):
+    """
+    change the game score after mouseclick
+    :param is_a_ghost: True, if ghost was hit
+    :param was_a_hit: bool - was a hit or not
+    :return: none
+    """
+    global GAME_SCORE
+    if was_a_hit and is_a_ghost:
+        GAME_SCORE += 100
+    elif not was_a_hit and is_a_ghost:
+        GAME_SCORE -= 1000
+    elif was_a_hit:
+        GAME_SCORE += 10
+    else:
+        GAME_SCORE -= 5
+
+    print(GAME_SCORE)
+
+
+def draw_info_window(screen):
+    pass
 
 
 main()
